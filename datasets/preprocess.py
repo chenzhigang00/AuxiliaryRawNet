@@ -18,10 +18,17 @@ def get_cm_protocols(pro_dir = '../data/LA/ASVspoof2019_LA_cm_protocols',
 
     for file in pro_files:
         cm_features = {}
-        with open(os.path.join(pro_dir, file), 'r') as f:
+        protocol_path = os.path.join(pro_dir, file)
+        with open(protocol_path, 'r') as f:
             cm_pros = f.readlines()
-        for pro in cm_pros:
-            pro = pro.strip('\n').split(' ')
+        for line_number, pro in enumerate(cm_pros, start=1):
+            pro = pro.strip().split()
+            if len(pro) < 5:
+                raise ValueError(
+                    "Invalid protocol line {} in {}: {}".format(
+                        line_number, protocol_path, pro
+                    )
+                )
             speaker_id = pro[0]
             auto_file_name = pro[1]
             system_id = pro[3]
@@ -35,6 +42,8 @@ def get_cm_protocols(pro_dir = '../data/LA/ASVspoof2019_LA_cm_protocols',
             }
         split_protocols.append(cm_features)
     # [train, dev, eval]
+    if len(split_protocols) != 3:
+        raise ValueError("Expected train, dev, and eval protocol files.")
     return {
         'train':split_protocols[0],
         'dev': split_protocols[1],
@@ -45,16 +54,19 @@ def get_dataset_annotation(split_features,
                            feature_name = 'cm',
                            data_dir = '../data',
                            file_name = 'ASVspoof2019',
+                           eval_file_name = None,
                            data_type = 'LA',
                            voice_dir = 'flac',
                            save_dir = 'processed_data/',
                            ):
+    os.makedirs(save_dir, exist_ok=True)
+    if eval_file_name is None:
+        eval_file_name = file_name
     for split in ['train','dev', 'eval']:
-        if split == 'eval':
-            file_name = 'ASVspoof2021',
+        current_file_name = eval_file_name if split == 'eval' else file_name
         features = split_features[split]
         # features have unique id which map to file id
-        subfolder = '{type}/{file}_{type}_{split}'.format(file=file_name,
+        subfolder = '{type}/{file}_{type}_{split}'.format(file=current_file_name,
                                                    type=data_type,
                                                    split=split)
         path = os.path.join(os.path.join(os.path.join(data_dir, subfolder), voice_dir), '*.flac')
@@ -76,24 +88,26 @@ def get_dataset_annotation(split_features,
 def create_json(split, files, features, save_dir, feature_name):
     annotations = {}
     n_miss = 0
-    for file in files:
-        signal = read_audio(file)
+    for file_path in files:
+        signal = read_audio(file_path)
         duration = signal.shape[0] / SAMPLERATE
 
-        id = Path(file).stem
+        id = Path(file_path).stem
         #TODO: SOME id not is features
         if id in features:
             annotations[id] = {
-                'file_path': file,
+                'file_path': file_path,
                 'duration': duration
             }
             for k in features[id]:
                 annotations[id][k] = features[id][k]
-        else: n_miss += 1
+        else:
+            n_miss += 1
     print('%d files missed description in protocol file in %s set'%(n_miss, split))
-    with open(os.path.join(save_dir, feature_name + '_' + split + '.json'), 'w') as f:
+    output_file = os.path.join(save_dir, feature_name + '_' + split + '.json')
+    with open(output_file, 'w') as f:
         json.dump(annotations, f)
-        print('Features are saved to %s'%(save_dir+feature_name + '_' + split + '.json'))
+        print('Features are saved to %s'%(output_file))
 
 def random_split_train_dev(data_dir = 'processed_data',
                            file = 'cm_merge.json',
@@ -101,7 +115,8 @@ def random_split_train_dev(data_dir = 'processed_data',
                            seed = 1243
                            ):
     random.seed(seed)
-    assert sum(split_ration) == 1
+    if abs(sum(split_ration) - 1.0) > 1e-8:
+        raise ValueError('split_ration must sum to 1.0')
     with open(os.path.join(data_dir, file), 'r') as f:
         data = json.load(f)
     # TODO: MAYBE WE CAN HAVE A MORE SMART WAY TO SPLIT DATA
@@ -125,7 +140,7 @@ def random_split_train_dev(data_dir = 'processed_data',
 
 def create_non_label_eval_json(pro_file = '../data/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2021.LA.cm.eval.trl.txt',
                                data_dir = '../data/LA/ASVspoof2021_LA_eval/flac/',
-                               output_file = './processed_data/cm_eval_2021.json'
+                               output_file = './processed_data/cm_eval.json'
                                ):
 
 
@@ -136,7 +151,7 @@ def create_non_label_eval_json(pro_file = '../data/LA/ASVspoof2019_LA_cm_protoco
     for p in data:
         p = p.replace('\n', '')
         j[p] = {}
-        j[p]['file_path'] = '%s%s.flac'%(data_dir, p)
+        j[p]['file_path'] = os.path.join(data_dir, p + '.flac')
         # Just for format
         j[p]['key'] = 'spoof'
 
@@ -145,6 +160,8 @@ def create_non_label_eval_json(pro_file = '../data/LA/ASVspoof2019_LA_cm_protoco
         duration = signal.shape[0] / 16000
         j[k]['duration'] = duration
 
+    output_dir = os.path.dirname(output_file)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
     with open(output_file, 'w') as f:
         json.dump(j, f)
-
