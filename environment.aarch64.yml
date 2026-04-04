@@ -1,0 +1,25 @@
+name: env_asv_public_aarch64
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - numpy<2
+  - pandas
+  - scipy
+  - scikit-learn
+  - librosa
+  - pysoundfile
+  - tqdm
+  - sentencepiece
+  - pyyaml
+  - setuptools
+  - pip:
+      - torch==2.1.0
+      - torchaudio==2.1.0
+      - torch-npu==2.1.0.post17
+      - speechbrain==0.5.16
+      - hyperpyyaml
+      - nnAudio==0.3.3
+      - ptflops==0.7.3

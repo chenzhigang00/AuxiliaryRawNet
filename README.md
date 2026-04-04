@@ -27,6 +27,20 @@ The model performance is tested on the ASVSpoof 2019 Dataset.
 -   Create a conda environment with  `conda env create -f environment.yml`.
 -   Activate the conda environment with  `conda activate `.
 
+### Notes for `linux-aarch64`
+
+The original `environment.yml` is the historical x86_64 environment used by the repository and includes `mkl` / old PyTorch pins that are not available on `linux-aarch64`.
+
+For Ascend NPU machines, source the Ascend toolkit first and then use the ARM/NPU environment:
+
+```bash
+source /usr/local/Ascend/ascend-toolkit/set_env.sh
+conda env create -f environment.aarch64.yml
+conda activate env_asv_public_aarch64
+```
+
+This environment uses the Ascend-compatible `torch` / `torch-npu` stack instead of the original x86-only setup.
+
 
 ``
 
@@ -55,6 +69,16 @@ The model performance is tested on the ASVSpoof 2019 Dataset.
 ### Train 
 
 `python train_raw_net.py yaml/RawSNet.yaml --data_parallel_backend -data_parallel_count=2`
+
+For single-card Ascend NPU training, use:
+
+```bash
+source /usr/local/Ascend/ascend-toolkit/set_env.sh
+conda activate env_asv_public_aarch64
+ASCEND_RT_VISIBLE_DEVICES=0 python train_raw_net.py yaml/RawSNet.yaml --device npu:0
+```
+
+The training entrypoint will auto-switch from the old CUDA default to `npu:0` on Ascend machines when `torch_npu` is available, but passing `--device npu:0` is still the clearest way to run it.
 
 ### Evaluate
   `python eval.py`

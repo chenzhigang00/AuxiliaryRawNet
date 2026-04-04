@@ -106,7 +106,7 @@ raw_encoder: !new:models.RawSNet.RawEncoder
 
 fbanks_encoder: !new:models.ECAPA_TDNN.ECAPA_TDNN
   input_size:  !ref <n_mels>
-  device: cuda
+  device: cpu
   activation: !name:torch.nn.LeakyReLU
   lin_neurons: !ref <dim_neck_fbanks>
   channels: [512, 512, 512, 512, 1536]
