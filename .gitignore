@@ -134,7 +134,19 @@ dmypy.json
 
 predictions/
 results/
+logs/
 *.ckpt
 .DS_Store
 /.idea
 submission/
+
+# Ascend runtime / compiler artifacts
+kernel_meta/
+ge_check_op.json
+fusion_result.json
+
+# Downloaded / generated preprocessing artifacts
+processed_data/RIRS_NOISES/
+processed_data/noise.csv
+processed_data/reverb.csv
+processed_data/rirs_noises.zip

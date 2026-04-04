@@ -42,7 +42,7 @@ emb_dim: 256
 # Training Parameters
 sample_rate: 16000
 number_of_epochs: 100
-batch_size: 12
+batch_size: 32
 lr_start: 0.0001
 
 
