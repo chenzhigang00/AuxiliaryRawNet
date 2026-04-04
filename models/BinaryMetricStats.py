@@ -126,11 +126,15 @@ class BinaryMetricStats(MetricStats):
             # eer, threshold = EER(positive_scores, negative_scores)
 
             # eer, threshold = EER(positive_scores, negative_scores)
-            positive_scores = torch.squeeze(positive_scores)
-            negative_scores = torch.squeeze(negative_scores)
-            eer, threshold = compute_eer(positive_scores.detach().cpu().numpy(),
-                                         negative_scores.detach().cpu().numpy()
-                                         )
+            positive_scores = positive_scores.reshape(-1)
+            negative_scores = negative_scores.reshape(-1)
+            if positive_scores.numel() == 0 or negative_scores.numel() == 0:
+                eer, threshold = float("nan"), float("nan")
+            else:
+                eer, threshold = compute_eer(
+                    positive_scores.detach().cpu().numpy(),
+                    negative_scores.detach().cpu().numpy(),
+                )
         # pred = (self.scores >= threshold).float()
         # true = self.labels
 

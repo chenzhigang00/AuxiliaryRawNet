@@ -16,6 +16,11 @@ dependencies:
   - pyyaml
   - setuptools
   - pip:
+      - attrs
+      - cloudpickle
+      - ml-dtypes
+      - psutil
+      - tornado
       - torch==2.1.0
       - torchaudio==2.1.0
       - torch-npu==2.1.0.post17

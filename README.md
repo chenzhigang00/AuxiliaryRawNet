@@ -68,20 +68,58 @@ This environment uses the Ascend-compatible `torch` / `torch-npu` stack instead 
 
 ### Train 
 
-`python train_raw_net.py yaml/RawSNet.yaml --data_parallel_backend -data_parallel_count=2`
+`python train_raw_net.py yaml/RawSNet.yaml --mode train --data_parallel_backend -data_parallel_count=2`
 
 For single-card Ascend NPU training, use:
 
 ```bash
 source /usr/local/Ascend/ascend-toolkit/set_env.sh
 conda activate env_asv_public_aarch64
-ASCEND_RT_VISIBLE_DEVICES=0 python train_raw_net.py yaml/RawSNet.yaml --device npu:0
+ASCEND_RT_VISIBLE_DEVICES=0 python train_raw_net.py yaml/RawSNet.yaml --mode train --device npu:0
 ```
 
 The training entrypoint will auto-switch from the old CUDA default to `npu:0` on Ascend machines when `torch_npu` is available, but passing `--device npu:0` is still the clearest way to run it.
 
+For this repository on an Ascend machine, the recommended wrapper is:
+
+```bash
+bash run_npu_experiment.sh train
+```
+
+To run the whole experiment flow in sequence:
+
+```bash
+bash run_npu_experiment.sh all
+```
+
+You can pick a different physical NPU with:
+
+```bash
+DEVICE_ID=1 bash run_npu_experiment.sh train
+```
+
 ### Evaluate
-  `python eval.py`
+
+First generate prediction scores from the trained checkpoint:
+
+```bash
+source /usr/local/Ascend/ascend-toolkit/set_env.sh
+conda activate env_asv_public_aarch64
+ASCEND_RT_VISIBLE_DEVICES=0 python train_raw_net.py yaml/RawSNet.yaml --mode eval --device npu:0
+```
+
+Then compute EER and min-tDCF:
+
+```bash
+python eval.py
+```
+
+The wrapper can also run these two steps directly:
+
+```bash
+bash run_npu_experiment.sh infer
+bash run_npu_experiment.sh metrics
+```
 
 ### Check Model Size and multiply-and-accumulates (MACs)
 `python check_model_size.py yaml/RawSNet.yaml `

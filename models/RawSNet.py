@@ -2,6 +2,7 @@ import torch
 import speechbrain as sb
 import pandas as pd
 import torch.nn as nn
+from speechbrain.dataio.dataio import length_to_mask
 from torch.utils.data import DataLoader
 from speechbrain import Stage
 from speechbrain.nnet.CNN import Conv1d
@@ -376,6 +377,7 @@ class RawEncoder(torch.nn.Module):
                 bias=True,
                 # num_layers=2,
             )
+        self.npu_temporal_proj = nn.Linear(128, 512)
         self.linear = Linear(
                 input_size=256,
                 n_neurons=128,
@@ -400,6 +402,19 @@ class RawEncoder(torch.nn.Module):
                     x = layer(x.permute(0,2,1)).permute(0,2,1)
                 else:
                     x = layer(x)
+        if x.device.type == "npu":
+            # DynamicGRUV2 backward is unstable on the current Ascend stack.
+            # Use masked mean pooling plus a linear projection for NPU training.
+            if lens is not None:
+                mask = length_to_mask(
+                    lens * x.shape[1], max_len=x.shape[1], device=x.device
+                ).unsqueeze(-1).type_as(x)
+                x = (x * mask).sum(dim=1) / mask.sum(dim=1).clamp_min(1.0)
+            else:
+                x = x.mean(dim=1)
+            x = self.npu_temporal_proj(x)
+            return x
+
         # x = x.permute(0, 2, 1)
         x, _ = self.gru(x)
         x = x[:, -1, :]
