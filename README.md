@@ -41,6 +41,8 @@ conda activate env_asv_public_aarch64
 
 This environment uses the Ascend-compatible `torch` / `torch-npu` stack instead of the original x86-only setup.
 
+For the machine in this repository, the installed toolkit is `CANN 8.0.RC3.20`, so the matching `torch-npu` build is `2.1.0.post8`. Newer `torch-npu` wheels such as `2.1.0.post17` target newer CANN releases and can break multi-NPU training even when single-NPU training still starts.
+
 
 ``
 
@@ -84,6 +86,19 @@ For this repository on an Ascend machine, the recommended wrapper is:
 
 ```bash
 bash run_npu_experiment.sh train
+```
+
+For 2-NPU Ascend DDP training, use:
+
+```bash
+ASCEND_RT_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node=2 --master_port=29501 \
+  train_raw_net.py yaml/RawSNet.yaml --mode train --device npu:0 --distributed_backend hccl
+```
+
+Or use the wrapper:
+
+```bash
+bash run_npu_experiment.sh train_ddp2
 ```
 
 To run the whole experiment flow in sequence:

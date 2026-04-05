@@ -59,11 +59,14 @@ def get_dataset(hparams):
     # Please, take a look into the lab_enc_file to see the label to index
     # mapping.
     lab_enc_file = os.path.join(hparams["save_folder"], "label_encoder.txt")
-    label_encoder.load_or_create(
-        path=lab_enc_file,
-        from_didatasets=[datasets["train"]],
-        # from_iterables=['bonafide', 'spoof'],
-        output_key="key",
-    )
+    if sb.utils.distributed.if_main_process() and not label_encoder.load_if_possible(
+        lab_enc_file
+    ):
+        label_encoder.update_from_didataset(datasets["train"], "key")
+        label_encoder.save(lab_enc_file)
+    sb.utils.distributed.ddp_barrier()
+    if not label_encoder.lab2ind:
+        label_encoder.load(lab_enc_file)
+    label_encoder.expect_len(2)
 
     return datasets

@@ -5,6 +5,8 @@ import torch.nn as nn
 from speechbrain.dataio.dataio import length_to_mask
 from torch.utils.data import DataLoader
 from speechbrain import Stage
+from torch.nn import SyncBatchNorm
+from torch.nn.parallel import DistributedDataParallel as DDP
 from speechbrain.nnet.CNN import Conv1d
 from speechbrain.nnet.RNN import GRU
 from speechbrain.lobes.models.ECAPA_TDNN import Res2NetBlock
@@ -16,6 +18,39 @@ from models.BinaryMetricStats import BinaryMetricStats
 
 
 class RawSNet(sb.Brain):
+    def _wrap_distributed(self):
+        if not self.distributed_launch and not self.data_parallel_backend:
+            return
+        if self.data_parallel_backend:
+            return super()._wrap_distributed()
+
+        device_type = torch.device(self.device).type
+        for name, module in self.modules.items():
+            if not any(p.requires_grad for p in module.parameters()):
+                continue
+
+            if device_type in {"cuda", "npu"}:
+                device_index = torch.device(self.device).index
+                module = DDP(
+                    module,
+                    device_ids=[device_index],
+                    find_unused_parameters=self.find_unused_parameters,
+                )
+            elif self.distributed_backend == "gloo":
+                module = DDP(
+                    module,
+                    device_ids=None,
+                    find_unused_parameters=self.find_unused_parameters,
+                )
+            else:
+                module = DDP(
+                    module,
+                    device_ids=None,
+                    find_unused_parameters=self.find_unused_parameters,
+                )
+
+            self.modules[name] = module
+
     def compute_forward(self, batch, stage):
         batch = batch.to(self.device)
 
@@ -337,6 +372,7 @@ class RawEncoder(torch.nn.Module):
                  activation=torch.nn.LeakyReLU,
                  ):
         super().__init__()
+        self.use_npu_temporal_pool = str(device).startswith("npu")
         self.blocks = nn.ModuleList()
         self.blocks.extend(
             [
@@ -373,7 +409,7 @@ class RawEncoder(torch.nn.Module):
         self.gru = GRU(
                 512,
                 input_size= 128,
-                dropout= 0.3,
+                dropout=0.0,
                 bias=True,
                 # num_layers=2,
             )
@@ -384,8 +420,11 @@ class RawEncoder(torch.nn.Module):
                 bias=True,
                 combine_dims=False,
             )
-
-
+        for param in self.linear.parameters():
+            param.requires_grad = False
+        if self.use_npu_temporal_pool:
+            for param in self.gru.parameters():
+                param.requires_grad = False
 
     def forward(self, x, lens=None):
         """Returns the x-vectors.
@@ -402,7 +441,7 @@ class RawEncoder(torch.nn.Module):
                     x = layer(x.permute(0,2,1)).permute(0,2,1)
                 else:
                     x = layer(x)
-        if x.device.type == "npu":
+        if self.use_npu_temporal_pool or x.device.type == "npu":
             # DynamicGRUV2 backward is unstable on the current Ascend stack.
             # Use masked mean pooling plus a linear projection for NPU training.
             if lens is not None:

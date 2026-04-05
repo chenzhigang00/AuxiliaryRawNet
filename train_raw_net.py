@@ -1,13 +1,33 @@
 import os
 import sys
+import datetime
+import logging
+import warnings
 import torch
-import speechbrain as sb
 from hyperpyyaml import load_hyperpyyaml
 from models.RawSNet import RawSNet
 from datasets.TrainSpeechDataset import get_dataset
 from datasets.EvalSpeechDataset import get_dataset as get_eval_dataset
 
+
+class _DropTorchVisionFigureWarning(logging.Filter):
+    def filter(self, record):
+        return (
+            record.getMessage()
+            != "torchvision is not available - cannot save figures"
+        )
+
+
+logging.getLogger().addFilter(_DropTorchVisionFigureWarning())
+
+import speechbrain as sb
+
 try:
+    warnings.filterwarnings(
+        "ignore",
+        message=r"Warning: The .* owner does not match the current owner\.",
+        category=UserWarning,
+    )
     import torch_npu  # noqa: F401
     HAS_TORCH_NPU = True
 except ImportError:
@@ -44,6 +64,11 @@ def parse_cli_args(argv):
 
 def prepare_run_opts(run_opts):
     requested_device = run_opts.get("device", "cuda:0")
+    local_rank = os.environ.get("LOCAL_RANK")
+
+    if local_rank is not None and requested_device.startswith("npu"):
+        run_opts["device"] = "npu:{}".format(local_rank)
+        requested_device = run_opts["device"]
 
     if requested_device.startswith("npu"):
         if not HAS_TORCH_NPU:
@@ -56,6 +81,7 @@ def prepare_run_opts(run_opts):
                 "NPU device requested but torch.npu is not available. "
                 "Check the Ascend runtime and source /usr/local/Ascend/ascend-toolkit/set_env.sh."
             )
+        torch.npu.set_device(requested_device)
         return run_opts
 
     if requested_device.startswith("cuda") and not torch.cuda.is_available():
@@ -67,6 +93,41 @@ def prepare_run_opts(run_opts):
     return run_opts
 
 
+def init_distributed_group(run_opts):
+    rank = os.environ.get("RANK")
+    local_rank = os.environ.get("LOCAL_RANK")
+    backend = run_opts.get("distributed_backend", "nccl")
+
+    if rank is None or local_rank is None:
+        return
+
+    if torch.distributed.is_initialized():
+        return
+
+    if backend == "hccl":
+        if not HAS_TORCH_NPU:
+            raise RuntimeError("HCCL backend requested but torch_npu is not installed.")
+        if not hasattr(torch.distributed, "is_hccl_available"):
+            raise RuntimeError("Current torch.distributed build does not expose HCCL.")
+        if not torch.distributed.is_hccl_available():
+            raise RuntimeError("HCCL backend is not available in the current runtime.")
+
+        device = run_opts.get("device", "npu:{}".format(local_rank))
+        if not device.startswith("npu"):
+            raise RuntimeError(
+                "HCCL backend requires an NPU device, got {}.".format(device)
+            )
+        torch.npu.set_device(device)
+        torch.distributed.init_process_group(
+            backend="hccl",
+            rank=int(rank),
+            timeout=datetime.timedelta(seconds=7200),
+        )
+        return
+
+    sb.utils.distributed.ddp_init_group(run_opts)
+
+
 def empty_accelerator_cache():
     if HAS_TORCH_NPU and hasattr(torch, "npu") and torch.npu.is_available():
         torch.npu.empty_cache()
@@ -75,7 +136,7 @@ def empty_accelerator_cache():
 
 def run_train(hparams_file, run_opts, overrides):
     # Initialize ddp (useful only for multi-GPU DDP training).
-    sb.utils.distributed.ddp_init_group(run_opts)
+    init_distributed_group(run_opts)
 
     # Load hyperparameters file with command-line overrides.
     with open(hparams_file) as fin:
@@ -108,7 +169,7 @@ def run_train(hparams_file, run_opts, overrides):
 
 def run_eval(hparams_file, run_opts, overrides):
     print("Start to Inference")
-    sb.utils.distributed.ddp_init_group(run_opts)
+    init_distributed_group(run_opts)
 
     with open(hparams_file) as fin:
         hparams = load_hyperpyyaml(fin, overrides)

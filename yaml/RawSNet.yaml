@@ -51,6 +51,9 @@ dataloader_options:
     batch_size: !ref <batch_size>
     shuffle: False
     drop_last: False
+    num_workers: 4
+    persistent_workers: True
+    prefetch_factor: 2
 
 
 
@@ -86,7 +89,7 @@ mfcc: !new:datasets.MFCC.MFCC
      f_max: 8000
      hop_length: 10
 
-cqt: !new:nnAudio.Spectrogram.CQT
+cqt: !new:nnAudio.features.cqt.CQT
     sr: 16000
     hop_length: 256
     trainable: False
@@ -102,6 +105,7 @@ mean_var_norm: !new:speechbrain.processing.features.InputNormalization
     std_norm: False
 
 raw_encoder: !new:models.RawSNet.RawEncoder
+    device: npu
     activation: !name:torch.nn.LeakyReLU
 
 fbanks_encoder: !new:models.ECAPA_TDNN.ECAPA_TDNN

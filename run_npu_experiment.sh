@@ -4,26 +4,33 @@ set -euo pipefail
 
 MODE="${1:-all}"
 DEVICE_ID="${DEVICE_ID:-0}"
+DEVICE_IDS="${DEVICE_IDS:-0,1}"
 ENV_NAME="${ENV_NAME:-env_asv_public_aarch64}"
 HPARAMS="${HPARAMS:-yaml/RawSNet.yaml}"
 ASCEND_ENV="${ASCEND_ENV:-/usr/local/Ascend/ascend-toolkit/set_env.sh}"
+MASTER_PORT="${MASTER_PORT:-29501}"
+OMP_NUM_THREADS="${OMP_NUM_THREADS:-1}"
 
 usage() {
   cat <<EOF
 Usage:
-  bash run_npu_experiment.sh [train|infer|metrics|all]
+  bash run_npu_experiment.sh [train|train_ddp2|infer|metrics|all]
 
 Modes:
-  train    Run training only.
-  infer    Run checkpoint evaluation only and write predictions/scores.txt.
-  metrics  Run eval.py only using existing predictions/scores.txt.
-  all      Run train, infer, and metrics in sequence.
+  train      Run single-NPU training only.
+  train_ddp2 Run 2-NPU Ascend DDP training.
+  infer      Run checkpoint evaluation only and write predictions/scores.txt.
+  metrics    Run eval.py only using existing predictions/scores.txt.
+  all        Run train, infer, and metrics in sequence.
 
 Environment overrides:
   DEVICE_ID   Physical Ascend device id to expose. Default: 0
+  DEVICE_IDS  Visible Ascend device ids for DDP. Default: 0,1
   ENV_NAME    Conda environment name. Default: env_asv_public_aarch64
   HPARAMS     Hyperparameter yaml path. Default: yaml/RawSNet.yaml
   ASCEND_ENV  Ascend toolkit env script. Default: /usr/local/Ascend/ascend-toolkit/set_env.sh
+  MASTER_PORT torchrun master port for DDP. Default: 29501
+  OMP_NUM_THREADS CPU threads per worker for torchrun. Default: 1
 EOF
 }
 
@@ -33,7 +40,7 @@ if [[ "${MODE}" == "-h" || "${MODE}" == "--help" ]]; then
 fi
 
 case "${MODE}" in
-  train|infer|metrics|all) ;;
+  train|train_ddp2|infer|metrics|all) ;;
   *)
     echo "Unsupported mode: ${MODE}" >&2
     usage >&2
@@ -47,6 +54,7 @@ if [[ ! -f "${ASCEND_ENV}" ]]; then
 fi
 
 source "${ASCEND_ENV}"
+export OMP_NUM_THREADS
 
 if ! command -v conda >/dev/null 2>&1; then
   echo "conda is not available in PATH." >&2
@@ -88,6 +96,14 @@ run_train() {
     2>&1 | tee "logs/train_npu${DEVICE_ID}.log"
 }
 
+run_train_ddp2() {
+  ASCEND_RT_VISIBLE_DEVICES="${DEVICE_IDS}" \
+    torchrun --nproc_per_node=2 --master_port="${MASTER_PORT}" \
+    train_raw_net.py "${HPARAMS}" --mode train --device npu:0 \
+    --distributed_backend hccl \
+    2>&1 | tee "logs/train_ddp2_$(echo "${DEVICE_IDS}" | tr ',' '_').log"
+}
+
 run_infer() {
   ASCEND_RT_VISIBLE_DEVICES="${DEVICE_ID}" \
     python train_raw_net.py "${HPARAMS}" --mode eval --device npu:0 \
@@ -101,6 +117,9 @@ run_metrics() {
 case "${MODE}" in
   train)
     run_train
+    ;;
+  train_ddp2)
+    run_train_ddp2
     ;;
   infer)
     run_infer

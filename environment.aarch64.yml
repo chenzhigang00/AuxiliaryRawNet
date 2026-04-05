@@ -23,7 +23,8 @@ dependencies:
       - tornado
       - torch==2.1.0
       - torchaudio==2.1.0
-      - torch-npu==2.1.0.post17
+      - torchvision==0.16.0
+      - torch-npu==2.1.0.post8
       - speechbrain==0.5.16
       - hyperpyyaml
       - nnAudio==0.3.3
