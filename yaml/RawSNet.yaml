@@ -43,17 +43,36 @@ emb_dim: 256
 sample_rate: 16000
 number_of_epochs: 100
 batch_size: 32
+eval_batch_size: 16
 lr_start: 0.0001
 
 
+train_dataloader_options:
+    batch_size: !ref <batch_size>
+    shuffle: True
+    drop_last: True
+    num_workers: 8
+    persistent_workers: True
+    prefetch_factor: 2
 
-dataloader_options:
+valid_dataloader_options:
     batch_size: !ref <batch_size>
     shuffle: False
     drop_last: False
     num_workers: 4
     persistent_workers: True
     prefetch_factor: 2
+
+eval_dataloader_options:
+    batch_size: !ref <eval_batch_size>
+    shuffle: False
+    drop_last: False
+    num_workers: 4
+    persistent_workers: True
+    prefetch_factor: 2
+
+# Backward-compatible fallback for older entrypoints.
+dataloader_options: !ref <valid_dataloader_options>
 
 
 

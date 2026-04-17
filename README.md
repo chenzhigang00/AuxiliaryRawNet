@@ -101,6 +101,25 @@ Or use the wrapper:
 bash run_npu_experiment.sh train_ddp2
 ```
 
+For 4-NPU Ascend DDP training, use:
+
+```bash
+ASCEND_RT_VISIBLE_DEVICES=0,1,2,3 OMP_NUM_THREADS=1 torchrun --nproc_per_node=4 --master_port=29501 \
+  train_raw_net.py yaml/RawSNet.yaml --mode train --device npu:0 --distributed_backend hccl
+```
+
+Or use the wrapper:
+
+```bash
+bash run_npu_experiment.sh train_ddp4
+```
+
+If you want a custom visible set or rank count, use the generic DDP wrapper mode:
+
+```bash
+DEVICE_IDS=4,5,6,7 DDP_NPROC=4 bash run_npu_experiment.sh train_ddp
+```
+
 To run the whole experiment flow in sequence:
 
 ```bash

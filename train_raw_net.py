@@ -1,5 +1,6 @@
 import os
 import sys
+import copy
 import datetime
 import logging
 import warnings
@@ -134,6 +135,12 @@ def empty_accelerator_cache():
     elif torch.cuda.is_available():
         torch.cuda.empty_cache()
 
+
+def get_loader_options(hparams, key):
+    if key in hparams:
+        return copy.deepcopy(hparams[key])
+    return copy.deepcopy(hparams["dataloader_options"])
+
 def run_train(hparams_file, run_opts, overrides):
     # Initialize ddp (useful only for multi-GPU DDP training).
     init_distributed_group(run_opts)
@@ -162,8 +169,8 @@ def run_train(hparams_file, run_opts, overrides):
         epoch_counter=spk_id_brain.hparams.epoch_counter,
         train_set=datasets["train"],
         valid_set=datasets["dev"],
-        train_loader_kwargs=hparams["dataloader_options"],
-        valid_loader_kwargs=hparams["dataloader_options"],
+        train_loader_kwargs=get_loader_options(hparams, "train_dataloader_options"),
+        valid_loader_kwargs=get_loader_options(hparams, "valid_dataloader_options"),
     )
 
 
@@ -186,7 +193,8 @@ def run_eval(hparams_file, run_opts, overrides):
         hparams = load_hyperpyyaml(fin, overrides)
 
     hparams["batch_size"] = 64
-    hparams["dataloader_options"]["batch_size"] = 16
+    eval_loader_kwargs = get_loader_options(hparams, "eval_dataloader_options")
+    eval_loader_kwargs["batch_size"] = 16
     datasets = get_eval_dataset(hparams)
     os.makedirs("predictions", exist_ok=True)
 
@@ -201,7 +209,7 @@ def run_eval(hparams_file, run_opts, overrides):
         test_set=datasets["eval"],
         min_key="eer",
         progressbar=True,
-        test_loader_kwargs=hparams["dataloader_options"],
+        test_loader_kwargs=eval_loader_kwargs,
     )
 
 

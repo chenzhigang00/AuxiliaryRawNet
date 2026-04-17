@@ -55,7 +55,7 @@ def get_tDCF(asv_score_file = 'losses/LA.asv.eval.scores.txt',
     asv_data = np.genfromtxt(asv_score_file, dtype=str)
     asv_sources = asv_data[:, 0]
     asv_keys = asv_data[:, 1]
-    asv_scores = asv_data[:, 2].astype(np.float)
+    asv_scores = asv_data[:, 2].astype(np.float64)
 
     # Extract target, nontarget, and spoof scores from the ASV scores
     tar_asv = asv_scores[asv_keys == 'target']
@@ -102,7 +102,7 @@ def compute_tDCF(asv_score_file = 'losses/LA.asv.eval.scores.txt',
     asv_data = np.genfromtxt(asv_score_file, dtype=str)
     asv_sources = asv_data[:, 0]
     asv_keys = asv_data[:, 1]
-    asv_scores = asv_data[:, 2].astype(np.float)
+    asv_scores = asv_data[:, 2].astype(np.float64)
 
     # Extract target, nontarget, and spoof scores from the ASV scores
     tar_asv = asv_scores[asv_keys == 'target']
